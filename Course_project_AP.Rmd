@@ -1,0 +1,151 @@
+---
+title: "Practical Machine Learning. Course Project"
+author: "Alexander Popov"
+date: "22 Aug 2015"
+output: html_document
+---
+### Overview
+
+In this project, our goal is to predict the manner in which 6 participants did the barbell lifting exercise: correctly or incorrectly in 5 different ways. The relevant data was collected from accelerometers on the belt, forearm, arm, and dumbell. All the data comes from this source: http://groupware.les.inf.puc-rio.br/har (section on the Weight Lifting Exercise)
+
+### Training and test data
+
+The training and test data for this project were taken from here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+They were then downloaded onto the local machine so that they could be easier used in the course project:
+```{r}
+setwd("~/Practical Machine Learning/COURSE PROJECT")
+training.data=read.csv("~/Practical Machine Learning/COURSE PROJECT/pml-training.csv")
+dim(training.data)
+testing.data=read.csv("~/Practical Machine Learning/COURSE PROJECT/pml-testing.csv")
+dim(testing.data)
+```
+The response variable is "classe":
+```{r}
+summary(training.data$classe)
+```
+
+Response variable is not continuous - it has 5 levels. Therefore we conclude that this is a typical classification problem. 
+
+Looking at the data we see that there are 159 possible predictors. The first thing we want to do about them is to remove those which are all NA's on the test data:
+
+```{r }
+ind=NULL
+for (i in 1:length(testing.data)) { 
+        len=length(levels(factor(testing.data[,i]))) 
+        if (len<1) ind=c(ind,i)
+}
+training.data=training.data[,-ind]
+names(training.data)
+testing.data=testing.data[,-ind]
+names(testing.data)
+```
+
+We can notice the reduction by 100 variables which is very good, it will be  much easier to asses the remaining variables.
+
+Let's go on with dimensionality reduction.
+We will remove "X" because it's just an observation id.
+We will remove  "raw_timestamp_part_1”, “raw_timestamp_part_2” and “cvtd_timestamp” because they are time stamps and we don't think they can impact the response variable at all. 
+
+We will go on with removing low-impact variables from the model. We will determine the impact of each predictor variable on the response variable "classe" by doing boxplot analysis. We will show 3 examples of such analysis. 
+
+##### Example 1.
+
+```{r }
+plot(training.data$pitch_belt~training.data$classe)
+```
+
+This boxplot shows that "pitch_belt" does not have much impact on the response variable and is a good candidate for removal from the model because observations of "pitch_belt"  in each class of response variable (A,B,C,D,E,F) has very close medians: all medians are below all upper  and above all lower quartiles.
+
+##### Example 2.
+
+```{r }
+plot(training.data$num_window~training.data$classe)
+```
+
+This boxplot shows that "num_window" has  an impact on the response variable and is a good candidate for including in  the model because observations of "num_window"  in each class of response variable (A,B,C,D,E,F) has significantly different medians: median in class A is below lower quartiles in classes B and C. 
+
+##### Example 3.
+
+```{r}
+int_classe=training.data$classe
+library(plyr)
+int_classe=mapvalues(int_classe,levels(as.factor(training.data$classe)),1:length(levels(as.factor(training.data$classe))))
+int_classe=as.numeric(int_classe)
+boxplot(int_classe~training.data$new_window)
+```
+
+We can see that variable "new_window" does not have an impact on response variable (we transfromed here response variable from factor to numeric): the medians, lower and upper quartiles  in each class of predictor  are the same.
+Variable "new_window" should be removed from the model.
+
+As a result of such analysis, we make a  decision to include 19 following predictors in the model:
+```{r }
+include_ind=c("user_name","num_window","roll_belt","yaw_belt","magnet_belt_y","magnet_belt_z","accel_arm_x","magnet_arm_x","magnet_arm_y","roll_dumbbell","pitch_dumbbell","accel_dumbbell_x","magnet_dumbbell_x","magnet_dumbbell_y","magnet_dumbbell_z","roll_forearm","accel_forearm_x","magnet_forearm_x","magnet_forearm_y")
+training.data=training.data[,c(include_ind,"classe")]
+names(training.data)
+testing.data=testing.data[,include_ind]
+names(testing.data)
+```
+
+Now we will build and train classification model with the stochastic gradient boosting algorithm  provided by the "gbm" R package.
+
+### The model 
+
+The error rate for the model will be accuracy defined by the fromula:   
+
+(TP+TN)/(TP+FP+TN+FN)
+
+where
+
+TP      true positives
+
+TN      true negatives
+
+FP      false positives
+
+FN      false negatives
+
+We will train the model on the 70% of the training data and cross validate it on the remaining 30%.
+
+Splitting the training data into training and cross validation sets:
+```{r }
+require(caret)
+set.seed(1)
+inTrain<-createDataPartition(y=training.data$classe,p=.7,list=F)
+training = training.data[ inTrain,]
+crossvls = training.data[-inTrain,]
+```
+Now let's train the model using default parameters.
+```{r }
+fitMod=train(classe~.,data=training,method="gbm",verbose=F)
+print(fitMod)
+print(summary(fitMod))
+```
+Predicting on cross validation data set:
+```{r }
+pred=predict(fitMod,newdata=crossvls)
+```
+Let's assess the model:
+```{r }
+cm=confusionMatrix(pred,crossvls$classe)
+print(cm)
+```
+
+From the above report we can conclude, that the expected  out-of-sample overall accuracy of the model will be greater than 0.9900.
+
+This result is OK for passing project test submission. 
+
+### Test submission
+
+Predicting on the test data:
+```{r }
+predX=predict(fitMod,newdata=testing.data)
+print(predX)
+```
+
+100% result
+
