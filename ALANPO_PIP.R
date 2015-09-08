@@ -307,12 +307,12 @@ print(fv)
 for (i in 3:ncol(train.data)) {
         train.data[,i]=(as.integer(
                 mapvalues(train.data[,i],levels(as.factor(train.data[,i])),
-                          1:length(levels(as.factor(train.data[,i])))))-1)/(fv1[i]-1)*100
+                          1:length(levels(as.factor(train.data[,i])))))-1)/(fv[i]-1)*100
 }
 for (i in 2:ncol(test.data)) {
         test.data[,i]=(as.integer(
                 mapvalues(test.data[,i],levels(as.factor(test.data[,i])),
-                          1:length(levels(as.factor(test.data[,i])))))-1)/(fv1[i+1]-1)*100
+                          1:length(levels(as.factor(test.data[,i])))))-1)/(fv[i+1]-1)*100
 }
         
 dtrain = train.data
